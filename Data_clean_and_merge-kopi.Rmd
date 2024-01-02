@@ -1,0 +1,154 @@
+---
+title: "Data_clean_and_merge"
+author: "Ida Dencker"
+date: "2023-11-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Packages 
+
+```{r}
+pacman::p_load(rjson, jsonlite, tidyverse)
+```
+
+#Load in data
+
+```{r}
+#beluga data 
+d_beluga <- jsonlite::stream_in(file('stories_prompt_1_final.ndjson'), verbose=F)
+
+#Reddit data
+d_reddit <- jsonlite::stream_in(file('data.ndjson'), verbose=F)
+
+```
+
+
+#Clean Beluga data
+
+```{r}
+#Remove the title: from ''Title: blabla' to \n\n
+d_beluga$beluga_completions[48] #This has a title 
+d_beluga$beluga_completions[53] #This has a title
+d_beluga$beluga_completions <- sub(".*?\\n\\n", "", d_beluga$beluga_completions)
+d_beluga$beluga_completions[48] #Check title is gone
+
+#Remove \n\n
+d_beluga$beluga_completions<-gsub("\n\n","",as.character(d_beluga$beluga_completions))
+
+#Remove \n\
+d_beluga$beluga_completions[34]
+d_beluga$beluga_completions<-gsub("\n","",as.character(d_beluga$beluga_completions))
+d_beluga$beluga_completions[34] #check 
+
+
+#Always space after period 
+d_beluga$beluga_completions <- gsub("\\.(?![[:space:]])", ". ", d_beluga$beluga_completions, perl=TRUE)
+d_beluga$beluga_completions[35] #check 
+
+```
+
+
+#Clean Reddit data
+
+```{r}
+#Replace the <newline> <newline> signs with a single space in reddit data 
+d_reddit$human_completions<-gsub("<newline> <newline>","",as.character(d_reddit$human_completions))
+
+#Replace the <newline> signs with a single space in reddit data 
+d_reddit$human_completions<-gsub("<newline>","",as.character(d_reddit$human_completions))
+
+#Make every story start with a capital letter
+d_reddit$human_completions<- str_to_sentence(d_reddit$human_completions)
+
+#Capitalize every sentence after a period 
+d_reddit$human_completions<-gsub("(\\.\\s*\\p{L})", "\\U\\1", d_reddit$human_completions, perl=TRUE)
+
+#Capitalize after every quoteation
+#” and “
+d_reddit$human_completions<-gsub('(”)(\\s*\\p{L})', '\\1\\U\\2', d_reddit$human_completions, perl=TRUE) 
+d_reddit$human_completions<-gsub('(“)(\\s*\\p{L})', '\\1\\U\\2', d_reddit$human_completions, perl=TRUE) 
+d_reddit$human_completions[5] #Check 
+#''
+d_reddit$human_completions<-gsub("('')(\\s*\\p{L})", "\\1\\U\\2", d_reddit$human_completions, perl=TRUE) 
+d_reddit$human_completions[13] #Check 
+
+#Make a period after ” (end of qoute)
+#d_reddit$human_completions<-gsub("”","”.",as.character(d_reddit$human_completions))
+#d_reddit$human_completions
+
+#Remove the double spacing
+d_reddit$human_completions <- gsub("\\s{2,}", " ", d_reddit$human_completions)
+``` 
+
+
+#Save the cleaned reddit data as csv
+```{r}
+write.csv(d_reddit,file='/Users/idahelenedencker/Desktop/CognitiveScience/5. semster/Bachelor Project/csv files/reddit_cleaned.csv', row.names=FALSE)
+
+```
+
+#Save the cleaned beluge data as csv
+```{r}
+write.csv(d_beluga,file='/Users/idahelenedencker/Desktop/CognitiveScience/5. semster/Bachelor Project/csv files/beluga_cleaned.csv', row.names=FALSE)
+```
+
+
+# Merging the data
+
+```{r}
+#Merging the data
+merge <- merge(d_reddit, d_beluga ,by="id")
+
+```
+
+
+#Changing the data structure
+
+```{r}
+#Removing the prompts columns
+df_no_promts = subset(merge, select = -(prompt_1))
+
+
+#making a DF with only the human data
+human_data <- d_reddit
+human_data$type <- "human"
+#renaming completion column
+human_data <- human_data %>% 
+        rename("completion" = "human_completions")
+
+
+#Making a DF with only machine data
+machine_data = subset(d_beluga, select = -c(prompt_1))
+machine_data$type <- "machine"
+#adding the prompt column
+machine_data$source <- human_data$source
+#renaming completion column
+machine_data <- machine_data %>% 
+        rename("completion" = "beluga_completions")
+
+
+#rbind to merge vertically (can be done since they now have the same columns)
+df_1_combined <- rbind(machine_data, human_data)
+#Remove story- from id column
+df_1_combined$id<-gsub("story","",as.factor(df_1_combined$id))
+df_1_combined$id<-gsub("-","",as.factor(df_1_combined$id))
+#make id numeric
+df_1_combined$id <- as.numeric(df_1_combined$id)
+#match by id
+df_1_done <- df_1_combined %>% arrange(id)
+
+```
+
+
+#Save the dataframes as CSV
+```{r}
+#Save dataframes as CSV to import to my python script
+write.csv(df_1_done,file='/Users/idahelenedencker/Desktop/CognitiveScience/5. semster/Bachelor Project/csv files/data_for_ML.csv', row.names=FALSE)
+
+```
+
+

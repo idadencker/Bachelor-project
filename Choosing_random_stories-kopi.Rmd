@@ -1,0 +1,86 @@
+---
+title: "Choosing_random_stories"
+author: "Ida Dencker"
+date: "2023-11-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#From the dataset of reddit, choose 30 random lines
+```{r}
+#Laod data
+data_reddit <- read_csv('/Users/idahelenedencker/Desktop/CognitiveScience/5. semster/Bachelor Project/csv files/reddit_cleaned.csv', col_names = TRUE,show_col_types = FALSE)
+```
+
+```{r}
+set.seed(29)
+random_reddit_data <- sample_n(data_reddit, 30)
+```
+
+```{r}
+random_reddit_data$source[17]
+random_reddit_data$human_completions[30]
+
+```
+```{r}
+#8, 9, 18 is replaced, too long
+#24, 29 is also replaced
+
+floor(runif(1, min=0, max=5001))
+#3211
+data_reddit$source[3211]
+data_reddit$human_completions[3211]
+
+floor(runif(1, min=0, max=5001))
+#2104
+data_reddit$source[2104]
+data_reddit$human_completions[2104]
+
+floor(runif(1, min=0, max=5001))
+#1467
+data_reddit$source[1467]
+data_reddit$human_completions[1467]
+
+floor(runif(1, min=0, max=5001))
+#588
+data_reddit$source[588]
+data_reddit$human_completions[588]
+
+floor(runif(1, min=0, max=5001))
+#1235
+data_reddit$source[1235]
+data_reddit$human_completions[1235]
+```
+
+
+#From the beluga dataset, choose 30 random lines
+```{r}
+#Laod data
+data_beluga <- read_csv('/Users/idahelenedencker/Desktop/CognitiveScience/5. semster/Bachelor Project/csv/beluga_cleaned.csv', col_names = TRUE,show_col_types = FALSE)
+```
+
+```{r}
+set.seed(1)
+random_beluga_data <- sample_n(data_beluga, 30)
+```
+
+
+```{r}
+random_beluga_data$prompt_1[30]
+random_beluga_data$beluga_completions[30]
+
+```
+```{r}
+#Get random story to replace nr. 25
+floor(runif(1, min=0, max=5001))
+#2867
+
+data_beluga$prompt_1[2867]
+data_beluga$beluga_completions[2867]
+
+```
+
+

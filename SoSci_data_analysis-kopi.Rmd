@@ -1,0 +1,467 @@
+---
+title: "SoSci_data_analysis"
+author: "Ida Dencker"
+date: "2023-11-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+#Load packages
+pacman::p_load(tidyverse, dplyr, stringr, cvms, lme4, ggplot2, egg)
+
+```
+
+
+```{r}
+#Load in data
+data_sosci <- read_csv('/Users/idahelenedencker/Desktop/CognitiveScience/5. semster/Bachelor Project/csv files/final_data_from_sosci.csv', col_names = TRUE,show_col_types = FALSE)
+
+#drow rows that did not consent
+data_sosci <- subset(data_sosci,WC02=='1')
+
+#drop rows that did not finish
+data_sosci <- subset(data_sosci,FINISHED=='1')
+
+#Select the columns i want to keep, the important ones
+data_sosci_imp = subset(data_sosci, select = c(
+  CASE,
+  MODE,
+  STARTED,
+  DA01_01,
+  DA01_02,
+  DA01_03,
+  DA01_04,
+  DA01_05,
+  DA01_06,
+  DA01_07,
+  DA01_08,
+  HU01,
+  HU01_01,
+  HU01_02,
+  HU01_03,
+  HU01_04,
+  HU01_05,
+  HU01_06,
+  QE01,
+  QE02,
+  QE03,
+  QE04,
+  QE05,
+  QE06,
+  QE07,
+  QE08,
+  QE09,
+  QE10,
+  QE11,
+  QE12,
+  QE13,
+  QE14,
+  QE15,
+  QE16,
+  SD01,
+  SD02_01,
+  SD04,
+  WC02,
+  LASTDATA
+  ))
+
+```
+
+#List explaining varibles
+DA01_01 - DA01_08: the stories in the order they are shown
+  a indicates ai story
+  hu indicates human story
+  1-30 indicates what story it was
+QE01 - QE16: guess and certainty paired in couples of 2 (QE01 and QE02, QE03 and QE04 etc.)
+  1: AI
+  2: Human
+  
+  1: completely unsure
+  2: slightly unsure
+  3: somewhat sure
+  4: slightly sure
+  5: completely sure
+HU01: how many boxes are ticked in heuristics 
+HU01_01 - HU01_06: the diferent heuristics
+  1: not ckecked
+  2: checkeed
+SD01: gender
+  1: female
+  2: male 
+  3: do not wish to say
+SD02_01: age
+SD04: prior ai knowledge
+  1: no, not really 
+  2: i have some idea
+  3: i know quite much 
+  4: i know a lot 
+WC02: consent
+  1: yes 
+  
+
+Restructuring data
+```{r}
+#replicate each row 8 times
+data_sosci_imp <- data_sosci_imp %>% 
+  slice(rep(1:n(), each = 8))
+
+
+#fill in 4 new columns: story, guess, certainty, correct
+#Story
+data_sosci_imp <- data_sosci_imp %>%
+  group_by(participant_id = (row_number() - 1) %/% 8 + 1) %>% #Makes a new participant id for each row and groups by that
+  mutate(story = case_when( #in all cases when 
+    row_number() %% 8 == 1 ~ DA01_01, #using the remainder, values are assigned if conditions are met
+    row_number() %% 8 == 2 ~ DA01_02,
+    row_number() %% 8 == 3 ~ DA01_03,
+    row_number() %% 8 == 4 ~ DA01_04,
+    row_number() %% 8 == 5 ~ DA01_05,
+    row_number() %% 8 == 6 ~ DA01_06,
+    row_number() %% 8 == 7 ~ DA01_07,
+    row_number() %% 8 == 0 ~ DA01_08,
+  )) %>%
+  ungroup() %>%
+  select(-participant_id)
+
+#guess
+data_sosci_imp <- data_sosci_imp %>%
+  group_by(participant_id = (row_number() - 1) %/% 8 + 1) %>% 
+  mutate(guess = case_when( 
+    row_number() %% 8 == 1 ~ QE01, 
+    row_number() %% 8 == 2 ~ QE03,
+    row_number() %% 8 == 3 ~ QE05,
+    row_number() %% 8 == 4 ~ QE07,
+    row_number() %% 8 == 5 ~ QE09,
+    row_number() %% 8 == 6 ~ QE11,
+    row_number() %% 8 == 7 ~ QE13,
+    row_number() %% 8 == 0 ~ QE15,
+  )) %>%
+  ungroup() %>%
+  select(-participant_id)
+
+#certainty
+data_sosci_imp <- data_sosci_imp %>%
+  group_by(participant_id = (row_number() - 1) %/% 8 + 1) %>% 
+  mutate(certainty = case_when( 
+    row_number() %% 8 == 1 ~ QE02, 
+    row_number() %% 8 == 2 ~ QE04,
+    row_number() %% 8 == 3 ~ QE06,
+    row_number() %% 8 == 4 ~ QE08,
+    row_number() %% 8 == 5 ~ QE10,
+    row_number() %% 8 == 6 ~ QE12,
+    row_number() %% 8 == 7 ~ QE14,
+    row_number() %% 8 == 0 ~ QE16,
+  )) %>%
+  ungroup() %>%
+  select(-participant_id)
+
+#correct
+data_sosci_imp$correct <- 
+         ifelse(grepl("hu",data_sosci_imp$story) & data_sosci_imp$guess== "2", 1,
+                ifelse(grepl("a",data_sosci_imp$story) & data_sosci_imp$guess== "1", 1, 0)) 
+
+
+#Delete the columns i won't need anymore 
+data_sosci_imp = subset(data_sosci_imp, select = -c(
+  DA01_01,
+  DA01_02,
+  DA01_03,
+  DA01_04,
+  DA01_05,
+  DA01_06,
+  DA01_07,
+  DA01_08,
+  QE01,
+  QE02,
+  QE03,
+  QE04,
+  QE05,
+  QE06,
+  QE07,
+  QE08,
+  QE09,
+  QE10,
+  QE11,
+  QE12,
+  QE13,
+  QE14,
+  QE15,
+  QE16))
+
+
+#Rename the columns so the names makes more sense 
+data_sosci_imp <- data_sosci_imp %>% 
+  rename(
+    hu_n_ticked = HU01,
+    hu_spe_error = HU01_01,
+    hu_fac_error = HU01_02,
+    hu_gram_error = HU01_03,
+    hu_plot = HU01_04,
+    hu_sense = HU01_05,
+    hu_none = HU01_06,
+    gender = SD01,
+    age = SD02_01,
+    ai_knowledge= SD04,
+    consent_given= WC02,
+    )
+
+
+#Present columns in the desired order
+data_sosci_imp <- data_sosci_imp[, c(1,2,3,15,14,11,12,13,4,5,6,7,8,9,10,16,17,18,19)]
+
+```
+
+# Demograpics
+```{r}
+#Age
+mean(data_sosci_imp$age)
+sd(data_sosci_imp$age)
+
+#Gender
+n_females <- length(which(data_sosci_imp$gender==1)) / 8
+n_females
+
+n_males <- length(which(data_sosci_imp$gender==2)) / 8
+n_males
+```
+
+
+#1: overall accuracy
+```{r}
+#Overall accuracy 
+mean(data_sosci_imp$correct)
+sd(data_sosci_imp$correct)
+
+#Are participants better at identifying ai or human stories?
+#Make a new column with story type
+data_sosci_imp$type <- 
+         ifelse(grepl("hu",data_sosci_imp$story), "human" , "ai" )
+#Test mean accuracy in the 2 groups
+t.test(correct ~ type, data = data_sosci_imp, var.equal=T)
+
+```
+Hit/miss confusion matrix plot
+```{r}
+#Make a new column 'prediction' that have the same input 'ai' and 'human' as the type column
+data_sosci_imp$prediction <- 
+         ifelse(data_sosci_imp$guess== 1 , "ai" , "human" )
+
+#Evaluate the predictions
+eval <- evaluate(data_sosci_imp,
+                 target_col = "type",
+                 prediction_cols = "prediction",
+                 type = "binomial")
+eval
+
+#Make a confusion matrix
+conf_mat <- eval$`Confusion Matrix`[[1]]
+conf_mat
+
+
+#Plot 
+plot_confusion <- plot_confusion_matrix(conf_mat, add_counts = FALSE, add_normalized= FALSE, add_row_percentages =FALSE, add_arrows=FALSE, font_col_percentages = font(size=5, vjust= -5))
+
+
+plot_confusion
+
+```
+
+
+#2: accuracy over trials: do participants get better
+
+```{r}
+#Make 'trial' column with values 1 to 8 for each participant
+data_sosci_imp$trial <- rep(1:8, each = 1, times = length(unique(data_sosci_imp$CASE)))
+
+#Make model to test for significance 
+
+trial_model <- glmer(correct ~ trial + (1 | CASE), data = data_sosci_imp, family = binomial)
+summary(trial_model) 
+#No sigg. effects 
+
+```
+
+
+#3: certainty: how many times are partcipants certain vs. uncertain
+```{r}
+#Calculate percentages for each certainty level
+data_sosci_imp %>% 
+    group_by( certainty ) %>% 
+    summarise( percent = format(round(100 * n() / nrow( data_sosci_imp ), 2), nsmall = 2))
+#Participants answered slightly sure or completely sure in 31,41% of the cases
+
+#Mean certainty 
+mean(data_sosci_imp$certainty)
+
+#Plot histogram to visualize 
+hist(data_sosci_imp$certainty)
+
+```
+
+
+#4: certainty: does accuracy increase with more centainty 
+```{r}
+#Make new column 'accuracy' 
+data_sosci_imp$Accuracy <- 
+         ifelse(data_sosci_imp$correct== 1 , "Correct" , "Incorrect" )
+
+#Plot barplot with all 5 levels
+plot_certainty <- ggplot(data_sosci_imp %>% 
+        group_by(certainty) %>% #Group by region and species, then count number in each group
+        count(certainty, Accuracy) %>% #Count number in each group
+        mutate(pct=n/sum(n)), #Calculate percent within each region
+        aes(certainty, n, fill=Accuracy)) +
+        geom_bar(stat="identity",width = 0.7, colour="darkgrey") +
+        scale_color_manual(values=c("deepskyblue3", "cadetblue3"))+
+        labs(y= "Counts", x = "Certainty")+
+        scale_fill_manual(values=c("deepskyblue3", "cadetblue3")) +
+        geom_text(aes(label=paste0(sprintf("%1.1f", pct*100),"%")), 
+            position=position_stack(vjust=0.5),size=3)+
+        theme_classic()
+plot_certainty
+
+#this works too, but this plot is without the percentages
+plot_cer <- ggplot(data_sosci_imp, aes(x=certainty, colour=Accuracy, fill=Accuracy)) + 
+        geom_bar(width = 0.7, colour="darkgrey") +
+        scale_color_manual(values=c("deepskyblue3", "cadetblue3"))+
+        scale_fill_manual(values=c("deepskyblue3", "cadetblue3")) +
+        theme_classic()
+plot_cer
+
+#Remove all cases where certainty is 3
+df2<-data_sosci_imp[!(data_sosci_imp$certainty==3),]
+
+#Divide participants into 2 groups (Certainty 1+2 & 3+4) to analyze the difference in accuracy
+df2$certainty_group <- 
+         ifelse(df2$certainty== 1 | df2$certainty== 2, "unsure",
+                ifelse(df2$certainty== 4 | df2$certainty== 5, "sure", NA)) 
+
+#Check mean accuracy in the 2 groups
+t.test(correct ~ certainty_group, data = df2, var.equal=T)
+#In cases where participants answered slightly sure or completely sure accuracy was 65% compared to cases where participants answered slightly unsure or completely unsure accuracy were 63%
+
+```
+
+Accuracy and certainty in the 2 groups (ai stories and human stories)
+```{r}
+#make a new dataframe with only human stories
+data_sosci <- subset(data_sosci,FINISHED=='1')
+
+
+#Make new column 'accuracy' 
+data_sosci_imp$Accuracy <- 
+         ifelse(data_sosci_imp$correct== 1 , "Correct" , "Incorrect" )
+
+#Plot barplot with all 5 levels
+plot_certainty <- ggplot(data_sosci_imp %>% 
+        group_by(certainty) %>% #Group by region and species, then count number in each group
+        count(certainty, Accuracy) %>% #Count number in each group
+        mutate(pct=n/sum(n)), #Calculate percent within each region
+        aes(certainty, n, fill=Accuracy)) +
+        geom_bar(stat="identity",width = 0.7, colour="darkgrey") +
+        scale_color_manual(values=c("deepskyblue3", "cadetblue3"))+
+        labs(y= "Counts", x = "Certainty")+
+        scale_fill_manual(values=c("deepskyblue3", "cadetblue3")) +
+        geom_text(aes(label=paste0(sprintf("%1.1f", pct*100),"%")), 
+            position=position_stack(vjust=0.5),size=3)+
+        theme_classic()
+plot_certainty
+```
+
+
+
+```{r}
+#Combine the 2 plots
+ggarrange(plot_confusion, plot_certainty, 
+          ncol = 2, nrow =1)
+#Doesn't look too needy.. 
+
+```
+
+#5: prior knowledge: is accuracy higher with participant with prior knowledge of AI
+
+1: no, not really 
+2: i have some idea
+3: i know quite much 
+4: i know a lot 
+
+```{r}
+knowledge_model <- glmer(correct ~ ai_knowledge + (1 | CASE), data = data_sosci_imp, family = binomial)
+summary(knowledge_model) 
+#No sigg. effect
+
+#Dividing into 2 groups and comparing accuracy score
+data_sosci_imp$knowledge_group <- 
+         ifelse(data_sosci_imp$ai_knowledge== 1 | data_sosci_imp$ai_knowledge== 2 , "little_know" , "more_know" )
+t.test(correct ~ knowledge_group, data = data_sosci_imp, var.equal=T)
+#Participants with quite much or a lot of prior knowledge had on accuracy of 62,5% compared to the people with no to some knowledge who had 61,6% accuracy 
+
+```
+
+#6: heuristics: what heuristics did partcipants report as important
+
+hu_n_ticked 
+hu_spe_error 
+hu_fac_error
+hu_gram_error 
+hu_plot
+hu_sense 
+hu_none 
+```{r}
+#Mean boxes checked  
+mean(data_sosci_imp$hu_n_ticked)
+#1,74 boxes ticked on avarage 
+
+#hu_spe_error
+per_1 <- data_sosci_imp %>% 
+    group_by( hu_spe_error ) %>% 
+    summarise( percent = 100 * n() / nrow( data_sosci_imp )) %>%
+    pluck("percent", 2)
+
+#hu_fac_error
+per_2 <- data_sosci_imp %>% 
+    group_by( hu_fac_error ) %>% 
+    summarise( percent = 100 * n() / nrow( data_sosci_imp ))%>%
+    pluck("percent", 2)
+
+#hu_gram_error
+per_3 <- data_sosci_imp %>% 
+    group_by( hu_gram_error ) %>% 
+    summarise( percent = 100 * n() / nrow( data_sosci_imp ))%>%
+    pluck("percent", 2)
+
+#hu_plot
+per_4 <- data_sosci_imp %>% 
+    group_by( hu_plot ) %>% 
+    summarise( percent = 100 * n() / nrow( data_sosci_imp ))%>%
+    pluck("percent", 2)
+
+#hu_sense
+per_5 <- data_sosci_imp %>% 
+    group_by( hu_sense ) %>% 
+    summarise( percent = 100 * n() / nrow( data_sosci_imp ))%>%
+    pluck("percent", 2)
+
+#hu_none
+per_6 <- data_sosci_imp %>% 
+    group_by( hu_none ) %>% 
+    summarise( percent = 100 * n() / nrow( data_sosci_imp )) %>%
+    pluck("percent", 2)
+
+
+#Ordered list of percentage of people who reported the feature as important
+per <- c(per_1, per_2, per_3, per_4, per_5, per_6)
+heuristics <- c('Spelling errors', 'Factual errors', 'Grammatical errors', 'The story plot', 'If stories made sense', 'None of the above')
+heu = data.frame(heuristics,format(round(per, 2), nsmall = 2))
+names(heu) = c("Heuristics","Percentage")
+heu
+#61,5% reported feature 4 (The story plot) as important, 41% reported feature 5 (if stories made sense) as important etc. 
+
+```
+
+
